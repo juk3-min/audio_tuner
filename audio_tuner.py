@@ -45,6 +45,17 @@ class Tuner():
                         input=True,
                         frames_per_buffer=a.CHUNK)
 
+    def open_stream_out(a):
+        p = pyaudio.PyAudio()
+        a.stream = p.open(format=a.FORMAT,
+                        channels=a.CHANNELS,
+                        rate=a.RATE,
+                        input_device_index=a.index_of_chosen_input_device,
+                        input=True,
+                        output_device_index=1,
+                        frames_per_buffer=a.CHUNK)
+
+
 
     def record_for_time(a,RECORD_SECONDS):
         a.open_stream()
