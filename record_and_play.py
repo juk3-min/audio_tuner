@@ -3,29 +3,37 @@ import time
 import librosa
 import numpy as np
 import pandas as pd
-import multiprocessing
 
 FORMAT = pyaudio.paInt16
 CHANNELS = 2
-CHUNK = 1024*8
-RATE = 44100
+CHUNK = 1024
+RATE = 15000
 
+print("start")
 audio = pyaudio.PyAudio()
 #
 # for i in range(audio.get_device_count()):
 #     print(json.dumps(audio.get_device_info_by_index(i), indent=2))
 
-i=0
+i=1
 last_gradient_up = True
 df = pd.DataFrame(columns=["signal", "sig2"])
-last_data=np.sin(np.linspace(0, 2* np.pi*50, CHUNK*CHANNELS))
-input_data=last_data.copy()
-last_cross_over=last_data.copy()
+
+
+BYTE_CHUNK= CHUNK*CHANNELS
+# last_data=[np.sin(np.linspace(0, 2* np.pi*50, BYTE_CHUNK))]
+
+input_data=np.zeros(BYTE_CHUNK*2)
+# last_cross_over=last_data.copy()
 signal=[]
 signal_p=[]
 res = 0
-mixed_last_frame=0
-mixed_crossover=0
+# mixed_last_frame=0
+# mixed_crossover=0
+
+output_data = np.zeros(BYTE_CHUNK*2)
+ham = np.hamming(BYTE_CHUNK*2)
+
 def callback(in_data, frame_count, time_info, status):
     global mixed_last_frame
     global mixed_crossover
@@ -35,89 +43,33 @@ def callback(in_data, frame_count, time_info, status):
     global last_data
     global last_cross_over
     global res
-    rev_l=1000
-    repeats =4
+    global output_data
+
+    repeats =20
     i +=0
     pitch_shift=-12
+    # Append 2th input
 
-    data = np.frombuffer(in_data, np.int16) / 2 ** 15
+    s= time.time()
+    res=in_data
+    data=(np.frombuffer(in_data, np.int16)/(2**15)).astype(np.float32)
+    input_data =np.roll(input_data,shift=BYTE_CHUNK)
+    input_data[BYTE_CHUNK:]=data
+    # input_data = np.hstack((last_data[0],last_data[1]))
+    # l = len((np.frombuffer(in_data, np.int16) / 2 ** 15).astype(np.float32))
+    # last_data.append(np.sin(np.linspace(0, 2 * np.pi *  (i % 50), l)))
 
+    s2= time.time()
+    last_frame = librosa.effects.pitch_shift(input_data, sr=RATE, n_steps=pitch_shift)
+    s3 = time.time()
+    # last_frame=input_data
+    last_frame = ham*last_frame
 
-    data = data.astype(np.float32)
-    # data=np.sin(np.linspace(0, 2* np.pi*10*i/100, CHUNK*CHANNELS))
-    input_data = np.hstack((input_data,data))
-
-    signal_p.extend(input_data[:len(data)])
-                # # Fade
-                # k=100
-                # ks=100
-                # data[:ks]=data[:ks]*np.linspace(0,1,ks)
-                # data[-k:]=data[-k:]*np.linspace(1,0,k)
-
-    # Sine signal instead?
-    # data =np.sin(np.linspace(0, 2*np.pi*5.133*i, len(in_data)))
-
-    fr= CHUNK*CHANNELS
-    c2 = int(fr/2)
-    last_frame = librosa.effects.pitch_shift(input_data[:fr], sr=RATE, n_steps=pitch_shift)
-    crossover_frame =librosa.effects.pitch_shift(input_data[c2:int(fr*1.5)], sr=RATE, n_steps=pitch_shift)
-
-
-    input_data=input_data[fr:]
-                    # # Downwards grad
-                    # this_gradient_up=(data[10]-data[0]>0)
-                    # if this_gradient_up==last_gradient_up:
-                    #     # Same Gradient --do nothing
-                    #     pass
-                    # else:
-                    #     # Flip signal
-                    #     data = data * -1
-
-
-
-    f_in = np.linspace(0,1,c2)
-    f_out =np.linspace(1,0,c2)
-
-    mixed_crossover=np.hstack((last_cross_over[c2:]*f_out,crossover_frame[:c2]* f_in))
-    last_cross_over=crossover_frame
-    mixed_last_frame=np.hstack((last_frame[c2:]*f_in,last_frame[:c2]* f_out))
-    # res = np.correlate(end2x, end, mode='full')
-    # buffer = 50
-    # idx=np.argmax(res[:len(end2x)-buffer])
-    data = mixed_crossover + mixed_last_frame
-
-
-    # last_gradient_up=(data[-1]-data[-11]>0)
-    # # Use reverse last past
-    # rev=last_data[-2:-(rev_l+1):-1]*-1
-    # rev=rev- (rev[0]-(last_data[-1]+last_data[-1]-last_data[-2]))
-    # rev = rev* np.linspace(1,0, len(rev))
-    # # Use repeated shifted last part
-    # end = last_data[-rev_l:]
-    # end2x = last_data[-2*rev_l:]
-    # res = np.correlate(end2x, end, mode='full')
-    # buffer = 50
-    # idx=np.argmax(res[:len(end2x)-buffer])
-    # print(len(end2x)-idx , idx)
-    # best_rep = end2x[idx:]
-    # best_rep = best_rep* np.linspace(1,0, len(best_rep))
-    # last_data=data
-
-
-
-    # # Apply reverse
-    # old = data[:len(rev)]* np.linspace(0,1, len(rev))
-    # data[:len(rev)] =rev +old
-    # last_data=data[-100:]
-
-
-    # # or applay correlat
-    # old = data[:len(best_rep)]* np.linspace(0,1, len(best_rep))
-    # data[:len(best_rep)] =best_rep +old
-
-
-    # normalize
-    signal.extend(data)
+    output_data +=last_frame
+    data = output_data[:BYTE_CHUNK].copy()
+    output_data[:BYTE_CHUNK]=0
+    output_data=np.roll(output_data,shift=BYTE_CHUNK)
+    # signal.extend(data)
     data = data/max(max(data), 0.3)*0.8
 
 
@@ -127,9 +79,11 @@ def callback(in_data, frame_count, time_info, status):
     # ks=200
     # data[:ks]=data[:ks]*np.linspace(0,1,ks)
     # data[-k:]=data[-k:]*np.linspace(1,0,k)
-
-    data = (data * 2 ** 15).astype(np.int16).tobytes()
-
+    data = ((data*2**15).astype(np.int16)).tobytes()
+    # data = res.tobytes()
+    t =(time.time() - s)
+    if t>CHUNK*0.9/RATE:
+        print(t, s3-s2 , CHUNK/RATE)
     if i> repeats:
         return data, pyaudio.paComplete
     return data, pyaudio.paContinue
@@ -156,18 +110,17 @@ stream.start_stream()
 while stream.is_active():
     time.sleep(0.1)
 
-df.signal=signal
-df.sig2=signal_p
-d=pd.DataFrame()
-d["this"]=mixed_last_frame
-d["last"]=mixed_crossover
-
-df.signal.plot()
-df.sig2.plot()
-df.plot()
 # stop stream (6)
 stream.stop_stream()
 stream.close()
 
 # close PyAudio (7)
 audio.terminate()
+df.signal=signal
+df.sig2=signal_p
+d=pd.DataFrame()
+
+df.signal.plot()
+df.sig2.plot()
+df.plot()
+

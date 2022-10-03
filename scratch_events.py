@@ -1,3 +1,43 @@
+import numpy as np
+import librosa
+import pandas as pd
+RATE=44000
+l=2048
+sig1= np.sin(np.linspace(0, 20, l))
+sig2= np.sin(np.linspace(0, 71.3, l))
+sig3= np.sin(np.linspace(0, 95.3, l))
+
+sig=np.hstack((sig1,sig2,sig3, sig1))
+df=pd.DataFrame()
+df["signal"]=sig
+
+
+
+first_chunk=sig[:2*l]
+first_fx= librosa.effects.pitch_shift(first_chunk, sr=RATE, n_steps=-12)
+
+df["first_fx"]=0
+df.loc[0:2*l-1, "first_fx"]=first_fx
+
+second_chunk=sig[l:3*l]
+
+second_fx= librosa.effects.pitch_shift(second_chunk, sr=RATE, n_steps=-12)
+
+df["second_fx"]=0
+df.loc[l:3*l-1, "second_fx"]=second_fx
+
+res=np.correlate(first_fx, second_fx, mode="full")
+idx=np.argmax(res)
+
+
+res=np.correlate(first_fx, second_fx, mode="full")
+idx=np.argmax(res)
+
+df["oberlay"]=0
+over=first_fx.copy()
+over[max(0, idx-2*l+1): min(idx,2*l)] +=second_fx[max(-2*l,-idx):min(2*l, 2*l+(2*l-idx-1))]
+df.loc[0:len(over)-1, "oberlay"]=over
+
 import pyaudio
 import numpy as np
 from scipy import signal
