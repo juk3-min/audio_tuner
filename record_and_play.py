@@ -5,13 +5,49 @@ import numpy as np
 import pandas as pd
 from multiprocessing import Process
 from multiprocessing import Pipe
-
+from pynput.keyboard import Key, Listener
+import threading
 FORMAT = pyaudio.paInt16
 CHANNELS = 2
 CHUNK = 1024
 RATE = 44000
 PITCH_SHIFT = -12
 process_switch = True
+
+lowcut = 400.0
+highcut = 2000.0
+
+def on_press(key):
+    global PITCH_SHIFT
+    # print('{0} pressed'.format(
+    #     key))
+    print(" ", flush=True)
+    if key == Key.up:
+        PITCH_SHIFT+=1
+        time.sleep(0.01)
+        print("Pitch Shift is ", PITCH_SHIFT)
+    if key == Key.down:
+        PITCH_SHIFT -= 1
+        time.sleep(0.01)
+        print("Pitch Shift is ", PITCH_SHIFT)
+
+
+def on_release(key):
+    # print('{0} release'.format(
+    #     key))
+
+    if key == Key.esc:
+        # Stop listener
+        return False
+
+# Collect events until released
+def foo():
+    with Listener(
+            on_press=on_press,
+            on_release=on_release) as listener:
+        listener.join()
+
+
 
 print("start")
 #
@@ -38,21 +74,37 @@ res = 0
 output_data = np.zeros(BYTE_CHUNK*2)
 ham = np.hamming(BYTE_CHUNK*2)
 
+from scipy.signal import butter, sosfilt, sosfreqz
 
 
+def butter_bandpass(lowcut, highcut, fs, order=5):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    sos = butter(order, [low, high], analog=False, btype='band', output='sos')
+    return sos
+
+
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+    sos = butter_bandpass(lowcut, highcut, fs, order=order)
+    y = sosfilt(sos, data)
+    return y
 
 OLD= np.zeros(BYTE_CHUNK*2)
 
 def pitch_shift(conn1):
     global OLD
+
     while True:
-        data=conn1.recv()
+        data, shift=conn1.recv()
+        data=butter_bandpass_filter(data, lowcut, highcut, RATE, order=6)
         conn1.send(OLD)
-        OLD=librosa.effects.pitch_shift(data, sr=RATE, n_steps=PITCH_SHIFT)
+        OLD=librosa.effects.pitch_shift(data, sr=RATE, n_steps=shift)
 
 
 def callback(in_data, frame_count, time_info, status):
     global conn2
+    global conn4
     global mixed_last_frame
     global mixed_crossover
     global i
@@ -63,6 +115,7 @@ def callback(in_data, frame_count, time_info, status):
     global res
     global output_data
     global process_switch
+    global PITCH_SHIFT
 
     repeats =20
     i +=0
@@ -79,10 +132,10 @@ def callback(in_data, frame_count, time_info, status):
 
     s2= time.time()
     if process_switch:
-        conn2.send(input_data)
+        conn2.send((input_data,PITCH_SHIFT))
         last_frame = conn2.recv()
     else:
-        conn4.send(input_data)
+        conn4.send((input_data,PITCH_SHIFT))
         last_frame = conn4.recv()
     process_switch = not process_switch
 
@@ -126,6 +179,10 @@ if __name__ == '__main__':
 
     player2 = Process(target=pitch_shift, args=(conn3,))
     player2.start()
+
+    x = threading.Thread(target=foo, args=(), daemon=True)
+    x.start()
+
 
     for k in [1]:
         print(f"recording in {k} s")
