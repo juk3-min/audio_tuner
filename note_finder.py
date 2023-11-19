@@ -9,34 +9,34 @@ import audio_tuner
 import numpy as np
 from scipy.interpolate import interp1d
 
-LYRICS=("We wish you a merry Christmas\nWe wish you a merry Christmas\nWe wish you a merry Christmas\n"+
-        "And a happy new year\n\nGood tidings we bring\nTo you and your kin\nGood tidings for Christmas\n"+
-        "And a happy new year")
-SANTA_LEVELS=2
-score=0
-FRAME_WIDTH=1920
-FRAME_HEIGHT=900
-DELTA_PITCH_CALC=5
-MEDIAN_LENGTH=20
-MAGNITUDE_THRESHHOLD=180000
-RATE=4000
-MIN_FREQ=20
-CHUNKTIME=1/MIN_FREQ
-CHUNK_NR_FFT=10
-CUT_OFF_FREQ=25
-wn = turtle.Screen()
-wn.tracer(0)
-bg_c=(0,32,67)
-# blue=np.array((0,32,67))
-blue=np.array((255,0,0))
-green=np.array((19,162,21))
-color_fit = interp1d([0,1], np.vstack([green, blue]), axis=0)
-pitch_calc = 0
-debug = True
+if __name__ == "__main__":
+    LYRICS=("We wish you a merry Christmas\nWe wish you a merry Christmas\nWe wish you a merry Christmas\n"+
+            "And a happy new year\n\nGood tidings we bring\nTo you and your kin\nGood tidings for Christmas\n"+
+            "And a happy new year")
+    SANTA_LEVELS=2
+    score=0
+    FRAME_WIDTH=1920
+    FRAME_HEIGHT=900
+    DELTA_PITCH_CALC=5
+    MEDIAN_LENGTH=20
+    MAGNITUDE_THRESHHOLD=180000
+    RATE=4000
+    MIN_FREQ=20
+    CHUNKTIME=1/MIN_FREQ
+    CHUNK_NR_FFT=10
+    CUT_OFF_FREQ=25
+    wn = turtle.Screen()
+    wn.tracer(0)
+    bg_c=(0,32,67)
+    # blue=np.array((0,32,67))
+    blue=np.array((255,0,0))
+    green=np.array((19,162,21))
+    color_fit = interp1d([0,1], np.vstack([green, blue]), axis=0)
+    pitch_calc = 0
+    debug = True
+
 concert_pitch=440
 ALL_NOTES = ["A","A#","B","C","C#","D","D#","E","F","F#","G","G#"]
-
-
 
 
 def find_closest_note(pitch):
@@ -53,7 +53,23 @@ def find_closest_note(pitch):
   other_pitch =    concert_pitch*2**(k/12)
   closest_note = ALL_NOTES[i%12] + str(4 + (i + 9) // 12)
   closest_pitch = concert_pitch*2**(i/12)
-  return closest_note, closest_pitch, other_pitch
+  return i, closest_pitch, other_pitch
+
+def auto_pitch(pitch, notes):
+    ALL_NOTES = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"]
+    closest_note, closest_pitch, other_pitch = find_closest_note(pitch)
+    if closest_pitch> pitch:
+        switch=False
+    else: switch= True
+    for buff in range(0,12):
+        i=(closest_note+buff*(1-switch*2))
+        if ALL_NOTES[i % 12] in notes:
+            return concert_pitch*2**(i/12)
+        switch = not switch
+    else:
+        return closest_pitch
+
+
 
 def change_concert_pitch(**kwargs):
     global concert_pitch
