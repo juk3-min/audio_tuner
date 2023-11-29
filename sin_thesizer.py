@@ -5,30 +5,25 @@ import time
 
 import pyaudio
 import numpy as np
-from matplotlib.animation import Animation
 from pygame import Surface, SurfaceType
 from pynput.keyboard import Key, Listener
 import threading
 from typing import Protocol
 import mido
 
-pressed = False
 import pygame
 import sys
 
 VOLUME = 0.5  # range [0.0, 1.0]
 SAMPLING_RATE = 44100  # sampling rate, Hz, must be integer
 SAMPLE_DURATION = 0.01  # in seconds, may be float
-frequencies = [50]  # sine frequency, Hz, may be float
-MIDI_PITCH_SHIFT = -12
-LOOP = True
-phases = []
 
 
 class WaveGenerator(Protocol):
     def create_wave(self):
         ...
-    def pitch(self, factor:float):
+
+    def pitch(self, factor: float):
         ...
 
 
@@ -41,7 +36,7 @@ class AudioGenerator:
         self.channels = channels
         self.volume: float = 0.2
         self.stream = None
-        self.wave = [0]
+        self.wave = [0, 0]
         self.open_stream()
         self.p: pyaudio.PyAudio
 
@@ -98,7 +93,7 @@ class SingleWaveGenerator:
         self.phase = 0
         self.volume = 1
 
-    def pitch(self, factor:float):
+    def pitch(self, factor: float):
         self.freq *= factor
 
     def create_wave(self):
@@ -130,11 +125,10 @@ class HarmonicsWaveGenerator(SingleWaveGenerator):
             wave_generator = SingleWaveGenerator(self.freq * harmonic, self.samples, self.sample_rate)
             self.wave_generators.append(wave_generator)
 
-    def pitch(self, factor:float):
+    def pitch(self, factor: float):
         self.freq *= factor
         for wave_gen in self.wave_generators:
             wave_gen.freq *= factor
-
 
     def create_wave(self):
         output = np.zeros(self.samples)
@@ -158,7 +152,7 @@ class MidiController:
         self.mid.ticks_per_beat = 40
         for msg in self.mid.play():
             if msg.type == "note_on":
-                note = msg.note + MIDI_PITCH_SHIFT
+                note = msg.note
                 volume = msg.velocity / 100
                 note = self.base_freq * (2 ** (note / 12))
                 print(note, volume)
@@ -217,7 +211,7 @@ class AudioController:
     def on_press(self, key):  # F  #E     #D       #C
         keys_for_c = self.keys_for_c
         try:
-            if key.vk in range(96,106):
+            if key.vk in range(96, 106):
                 key.char = str(key.vk - 96)
         except:
             pass
@@ -445,7 +439,7 @@ class MidiAnimator:
                                   self.screen.get_width() - 10, y_pos,
                                   (255, 255, 255))
                 try:
-                    note_text = str(self.keys_for_c[note]) + "   " + str(note)  # + "  + " + str(note))
+                    note_text = str(self.keys_for_c[note])  # + "  + " + str(note))
                 except IndexError:
                     note_text = f"Not found {note}"
                 text = PyGameText(self.screen, note_text, self.screen.get_width() - 10, y_pos + 2 * rect_height,
@@ -513,9 +507,12 @@ class AnimationFrame:
 
         # Game loop
         clock = pygame.time.Clock()
-        while True:
+        continue_loop = True
+
+        while continue_loop:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    continue_loop = False
                     pygame.quit()
                     sys.exit()
 
@@ -536,25 +533,41 @@ class AnimationFrame:
             clock.tick(self.tickrate)
 
 
-def main():
-    # play_with_audio_controller()
-    # play_with_midi_controller()
-    # return
-
-    #########
-
-    keys_for_c = ["#"] * 80
+def create_alphabetic_shuffle():
+    shuffled_alphabet = []
     base = ord("a")
-    # keys_for_shuffle=[]
-    # for i in range(26):
-    #     keys_for_shuffle.append(chr(i + base))
-    #
-    # keys_for_shuffle.extend(["ö", "ä", "ü", "-"])
-    # for i in range(1, 9):
-    #     keys_for_shuffle.append(str(i))
-    # random.seed(41)
-    # random.shuffle(keys_for_shuffle)
-    # keys_for_c.extend(keys_for_shuffle)
+    for i in range(26):
+        shuffled_alphabet.append(chr(i + base))
+
+    random.shuffle(shuffled_alphabet)
+    return shuffled_alphabet
+
+
+def is_pentatonic(num: int):
+    pentatonic_numbers = [0, 2, 4, 7, 9]
+    rest = num % 12
+    if rest in pentatonic_numbers:
+        return True
+    return False
+
+
+class DrawAudioController:
+    def __init__(self, audio_generator: AudioGenerator, screen: Surface):
+        self.audio_generator = audio_generator
+        self.screen = screen
+
+    def draw(self):
+        y_pos = (np.array(self.audio_generator.wave) * 100 + 300).tolist()
+        x_pos = np.arange(len(y_pos)).tolist()
+        points = list(zip(x_pos, y_pos))
+
+        pygame.draw.aalines(self.screen, (100, 200, 200), False, points)
+
+
+def main():
+    #########
+    # Mapping of keys to note indicies
+    keys_for_c = ["#"] * 80
     keys_for_c[60] = "3"
     keys_for_c[64] = "2"
     keys_for_c[65] = "1"
@@ -564,62 +577,7 @@ def main():
     keys_for_c[72] = "g"
     keys_for_c[74] = "f"
 
-    ###############
-    # alpha = []
-    # for i in range(26):
-    #     alpha.append(chr(i + base))
-    #
-    # random.shuffle(alpha)
-    #
-    # keys_for_c2 = [["#"] for _ in range(70)]
-    #
-    # def is_pentatonic(num: int):
-    #     pentatonic_numbers = [0, 2, 4, 7, 9]
-    #     rest = num % 12
-    #     if rest in pentatonic_numbers:
-    #         return True
-    #     return False
-    #
-    # counter = 0
-    # loop = True
-    # while loop:
-    #     for i in range(55,67):
-    #         if is_pentatonic(i):
-    #             try:
-    #                 keys_for_c2[i].append(alpha[counter])
-    #                 counter += 1
-    #             except IndexError:
-    #                 loop = False
-    #                 break
-
-    ################
-    print("t 0")
-    frame = AnimationFrame(800, 600)
-
-    # show the frame and create the screen
-    frame.show()
-
-    def rect_factory():
-        return PyGameRect(frame.screen, 4, 4, 100, y_pos=1 * 100 + 200, color=(255, 0, 0))
-
-    class helper:
-
-        rects = [rect_factory()]
-
-        def draw(self):
-            y_pos = audio_generator.wave[-1]*100+200
-            rect = rect_factory()
-            rect.update_pos(100, y_pos)
-            rects = self.rects
-            for r in rects:
-                r.move_pos(dx=-1, dy=0)
-                r.draw()
-                if r.x<0:
-                    self.rects.remove(r)
-
-    frame.controller = helper()
-
-    print("t1")
+    print("Starting Audio Generator with Listener Thread")
 
     audio_generator = AudioGenerator(sample_rate=SAMPLING_RATE, samples=int(SAMPLE_DURATION * SAMPLING_RATE),
                                      channels=1)
@@ -628,23 +586,11 @@ def main():
     audio_controller.base_freq = 2
     audio_controller.start_thread()
 
-
-    thread = threading.Thread(target=frame.loop, args=(), daemon=False)
-    thread.start()
-
-
-
-    print("t2")
-
+    print("Starting Controller Loop which plays the audio generator ")
     thread = threading.Thread(target=audio_controller.loop, args=(), daemon=False)
     thread.start()
 
-    return
-    #########
-
     frame = AnimationFrame(800, 600)
-
-    # show the frame and create the screen
     frame.show()
 
     midi_animator = MidiAnimator(midifilepath="oh tannenbaum.mid", screen=frame.screen, keys_for_c=keys_for_c)
