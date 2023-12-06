@@ -56,7 +56,7 @@ def main():
 
     def envelope(data, time):
         length = len(data)
-        return (data * np.max((np.ones(length)*0.1,
+        return (data * np.max((np.ones(length)*0.7,
                 np.exp(-1 * time) *
                 np.min(np.vstack((np.ones(length), np.exp((time+0.1)*5*(np.arange(length) / length)))),
                        axis=0))))
@@ -86,6 +86,8 @@ def main():
         f = FourierWaveGenerator(**kwargs, anbn=fourier, wave_generator=SingleWaveGenerator)
         return f
     audio_controller.wave_generator = wave_factory
+    audio_controller.volume = 1
+
     audio_controller.start_thread()
     print("Starting Controller Loop which plays the audio generator ")
     thread = threading.Thread(target=audio_controller.loop, args=(), daemon=True)
@@ -94,16 +96,14 @@ def main():
     # Controller 2
     ########################################
 
-
     audio_controller = AudioController(audio_generator=audio_generator, keys_for_c=keys_for_c_controller_2)
-
     audio_controller.wave_generator = HarmonicsWaveGenerator
     audio_controller.base_freq = BASE_FREQUENCY
-
+    audio_controller.volume = 1
     audio_controller.start_thread()
 
     #############
-    frame = AnimationFrame(800, 600)
+    frame = AnimationFrame(1920, 1000)
     frame.show()
     midi_animator = MidiAnimator(midifilepath="oh tannenbaum.mid", screen=frame.screen,
                                  keys_for_c=keys_for_c)
@@ -196,13 +196,13 @@ class AudioGenerator:
 
 
 class SingleWaveGenerator:
-    def __init__(self, freq: float, samples: int, sample_rate: int):
+    def __init__(self, freq: float, samples: int, sample_rate: int, volume = 1):
         self.freq = freq
         self.samples = samples
         self.sample_rate = sample_rate
         self.signal_function = np.sin
         self.phase = 0
-        self.volume = 1
+        self.volume = volume
 
     def pitch(self, factor: float):
         self.freq *= factor
@@ -219,8 +219,8 @@ class SingleWaveGenerator:
 
 class HarmonicsWaveGenerator(SingleWaveGenerator):
     def __init__(self, freq: float, samples: int, sample_rate: int, harmonics: list = None,
-                 volumes: list = None):
-        super().__init__(freq, samples, sample_rate)
+                 volumes: list = None, volume=1):
+        super().__init__(freq, samples, sample_rate, volume=volume)
 
         if harmonics is None:
             self.harmonics = [1, 3, 5, 7]  # , 9] , 11, 13]
@@ -295,6 +295,7 @@ class AudioController:
         self.audio_generator = audio_generator
         self.thread = None
         self.exit = False
+        self.volume = 1
         self.pressed = set()
         self.listener: Listener
         self.restart = False
@@ -373,7 +374,7 @@ class AudioController:
                                                         wave_generator=self.wave_generator(
                                                             freq=freq,
                                                             samples=self.get_samples(),
-                                                            sample_rate=self.get_sample_rate()))
+                                                            sample_rate=self.get_sample_rate(), volume=self.volume))
         except AttributeError:
             pass
 
@@ -568,7 +569,7 @@ class MidiAnimator:
                 if note != max(event.keys()) and note != min(event.keys()):
                     continue
                 duration = event[note]
-                rect_height = 5
+                rect_height = 12
                 y_pos = self.screen.get_height() // 2 - (note - 60) * rect_height * 2
                 rect = PyGameRect(self.screen,
                                   abs(duration / (self.tickrate_ms / 1000) * self.dx) - 2,

@@ -102,12 +102,12 @@ def play_data(data, sample_rate):
 
 
 class FourierWaveGenerator(WaveGenerator):
-    def __init__(self, freq: float, samples: int, sample_rate: int, anbn, wave_generator):
+    def __init__(self, freq: float, samples: int, sample_rate: int, anbn, wave_generator, volume=1):
         self.freq = freq
         self.samples = samples
         self.sample_rate = sample_rate
         self.wave_generator = wave_generator
-        self.volume = 1
+        self.volume = volume
         self.wave_generators = []
         self.anbn = anbn
         for n, (a, b) in enumerate(anbn):
@@ -124,7 +124,7 @@ class FourierWaveGenerator(WaveGenerator):
     def create_wave(self):
         output = np.zeros(self.samples)
         for wg in self.wave_generators:
-            output += wg.create_wave()
+            output += wg.create_wave() * self.volume
         return output
 
     def pitch(self, factor: float):
