@@ -6,9 +6,12 @@ import soundfile as sf
 from matplotlib import pyplot as plt
 from scipy.fft import fft, fftfreq
 import json
+
 def main():
     path = Path("Violin_open_string.ogg")
     data, sr = read_wav(path)
+    play_wav(path, start=0, end=5*sr)
+
     start = int(sr*2)
     end = int(sr*2.3)
 
@@ -109,6 +112,7 @@ class FourierWaveGenerator(WaveGenerator):
         self.anbn = anbn
         for n, (a, b) in enumerate(anbn):
             if n == 0:
+                continue
                 a = a / 2
             wga = self.wave_generator(n*self.freq, self.samples, self.sample_rate)
             wga.volume = b
@@ -118,7 +122,6 @@ class FourierWaveGenerator(WaveGenerator):
             self.wave_generators.extend([wga,wgb])
 
     def create_wave(self):
-        print(self.freq)
         output = np.zeros(self.samples)
         for wg in self.wave_generators:
             output += wg.create_wave()
