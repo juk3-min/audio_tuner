@@ -100,6 +100,14 @@ def play_data(data, sample_rate):
     sd.play(data, sample_rate)
     sd.wait()
 
+#TODO Song n mal wiederholen
+# Einstellungen nach oben ziehen
+# Lustig einleiten
+# Wie klingt der harmonischeste Ton -- > Simple Generator
+# Harmonic Generator
+# Zeigen wie perfekt fourier ist
+# Bandmember introduction
+# Performance
 
 class FourierWaveGenerator(WaveGenerator):
     def __init__(self, freq: float, samples: int, sample_rate: int, anbn, wave_generator, volume=1):
