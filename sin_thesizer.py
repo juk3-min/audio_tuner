@@ -22,8 +22,8 @@ import pygame
 import sys
 
 # How often should oh tannenbaum be animated
-MAX_REPETITIONS = 2
-SOLO_DURATION = 15
+MAX_REPETITIONS = 3
+SOLO_DURATION = 10
 SAMPLING_RATE = 44100  # sampling rate, Hz, must be integer
 SAMPLE_DURATION = 0.01  # in seconds, may be float
 
@@ -614,8 +614,10 @@ class MidiAnimator:
                 except IndexError:
                     next_event = SOLO_DURATION
                     if repetitions + 1 < MAX_REPETITIONS:
-                        for kk in range(4):
-                            text = PyGameText(self.screen, "SOLO TIME", self.screen.get_width() + (1+kk)*300,
+                        rep = 2
+                        dx = abs((SOLO_DURATION / rep )/ (self.tickrate_ms/1000)* self.dx)
+                        for kk in range(rep):
+                            text = PyGameText(self.screen, "SOLO TIME", self.screen.get_width() +100+ (kk)*dx,
                                               self.screen.get_height()//2,
                                               (255, 255, 255), None,
                                               50)
