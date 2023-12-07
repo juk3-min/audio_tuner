@@ -17,6 +17,7 @@ def main():
 
     play_wav(path, start=start, end=end)
     plt.plot(data[start:end,0])
+    plt.show()
 
     N = end-start
     # sample spacing
@@ -31,7 +32,7 @@ def main():
     data_small = data[start:end, 0]
     idx_of_zero_pass = get_first_zero_pass(data_small)
     sample = data_small[idx_of_zero_pass:idx_of_zero_pass+sample_length]
-    fourier_coff = fourierSeries(sample, 60)
+    fourier_coff = fourierSeries(sample, 30)
 
     f_data = reconstruct(sr / base_freq, fourier_coff)
     plt.plot(sample)
@@ -39,14 +40,11 @@ def main():
     plt.show()
     d = np.tile(f_data, 144*2)
     play_data(d, sample_rate=sr)
-    plt.plot(d)
     d = np.tile(sample, 144*2)
     play_data(d, sample_rate=sr)
     with open("violin_fourier_coff", "w") as f:
         fourier = [ (a,b) for a,b in fourier_coff]
         json.dump(list(fourier), f)
-    plt.plot(d)
-    plt.show()
 
 
 
@@ -139,8 +137,6 @@ class FourierWaveGenerator(WaveGenerator):
         self.freq *= factor
         for wg in self.wave_generators:
             wg.pitch(factor)
-
-
 
 
 def fourierSeries(period, N):

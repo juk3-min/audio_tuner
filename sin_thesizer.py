@@ -21,7 +21,9 @@ from wave_generator import WaveGenerator
 import pygame
 import sys
 
-VOLUME = 0.5  # range [0.0, 1.0]
+# How often should oh tannenbaum be animated
+MAX_REPETITIONS = 3
+SOLO_DURATION = 10
 SAMPLING_RATE = 44100  # sampling rate, Hz, must be integer
 SAMPLE_DURATION = 0.01  # in seconds, may be float
 
@@ -69,22 +71,21 @@ def main():
     # Controller 1
     # ########################################
     keys_for_c_controller_1 = keys_for_c.copy()
-    keys_for_c_controller_1[:59] = ["#"]*59
+    keys_for_c_controller_1[:59] = ["#"] * 59
 
     keys_for_c_controller_2 = keys_for_c.copy()
     keys_for_c_controller_2[60:] = "#"
 
 
     audio_controller = AudioController(audio_generator=audio_generator, keys_for_c=keys_for_c_controller_1)
-    audio_controller.base_freq = BASE_FREQUENCY*2
+    audio_controller.base_freq = BASE_FREQUENCY * 2
 
-    # with open("piano_fourier_coff", "rb") as f:
     with open("piano_fourier_coff", "rb") as f:
         fourier = json.load(f)
 
     def wave_factory(**kwargs):
-        f = FourierWaveGenerator(**kwargs, anbn=fourier, wave_generator=SingleWaveGenerator)
-        return f
+        return FourierWaveGenerator(**kwargs, anbn=fourier, wave_generator=SingleWaveGenerator)
+
     audio_controller.wave_generator = wave_factory
     audio_controller.volume = 1
 
@@ -120,21 +121,20 @@ def main():
     thread = threading.Thread(target=midi_animator.create_listener, args=(), daemon=True)
     thread.start()
 
-    thread = threading.Thread(target=animate, args=(), daemon=True)
+    thread = threading.Thread(target=midi_animator.animate, args=(), daemon=True)
     thread.start()
-    print("t1")
 
-    print("t3")
     # Start he pygame loop
     frame.loop()
 
     ...
 
+
 class AudioGenerator:
-    def __init__(self,play_time_function, sample_rate: int, samples: int, channels: int = 1):
+    def __init__(self, play_time_function, sample_rate: int, samples: int, channels: int = 1):
         self.wave_generators = dict()
         self.play_times = dict()
-        self.play_time_function=play_time_function
+        self.play_time_function = play_time_function
         self.end_waves = dict()
         self.sample_rate = sample_rate
         self.samples = samples
@@ -196,7 +196,7 @@ class AudioGenerator:
 
 
 class SingleWaveGenerator:
-    def __init__(self, freq: float, samples: int, sample_rate: int, volume = 1):
+    def __init__(self, freq: float, samples: int, sample_rate: int, volume=1):
         self.freq = freq
         self.samples = samples
         self.sample_rate = sample_rate
@@ -356,10 +356,9 @@ class AudioController:
                 else:
                     self.wave_generator = SingleWaveGenerator
                     print("switched to single wave generator")
-            if key.char == "P":
-                plt.plot(self.audio_generator.wave)
-                plt.show()
-
+            # if key.char == "P":
+            #     plt.plot(self.audio_generator.wave)
+            #     plt.show()
 
             if key.char in [char for sub_list in keys_for_c for char in sub_list]:
                 self.pressed.add(key.char)
@@ -473,6 +472,7 @@ class PyGameText(AnimationObject):
         self.font = pygame.font.Font(font, size)
         self.x = x_pos
         self.y = y_pos
+        self.surface = None
 
     def update_pos(self, x, y):
         self.x = x
@@ -485,11 +485,16 @@ class PyGameText(AnimationObject):
     def get_pos(self) -> (int, int):
         return self.x, self.y
 
+    def render(self):
+        self.surface = self.font.render(self.text, True, self.color)
+
     def draw(self):
-        text = self.font.render(self.text, True, self.color)
-        text_rect = text.get_rect()
+        if self.surface is None:
+            self.render()
+        text_rect = self.surface.get_rect()
         text_rect.topleft = (self.x, self.y)
-        self.screen.blit(text, text_rect)
+        self.screen.blit(self.surface, text_rect)
+
 
 
 def out_of_bounds(obj: AnimationObject, screen: Surface | SurfaceType) -> bool:
@@ -498,9 +503,10 @@ def out_of_bounds(obj: AnimationObject, screen: Surface | SurfaceType) -> bool:
     y_max = screen.get_height()
     if x < 0 or y < 0:
         return True
-    if x > x_max or y > y_max:
+    if x > x_max*2 or y > y_max*2:
         return True
     return False
+
 
 class MidiAnimator:
     def __init__(self, midifilepath, screen, keys_for_c=[]):
@@ -512,18 +518,23 @@ class MidiAnimator:
         self.dy = 0
         self.keys_for_c = keys_for_c
         self.tick = 0
+
+    def change_speed(self, factor):
+        self.tickrate_ms /= factor
+        self.mid.ticks_per_beat *= factor
+
     def create_listener(self):
         self.listener = Listener(
             on_release=self.on_release)
         with self.listener as listener:
             listener.join()
+
     def on_release(self, key):
         try:
             if key.char == "R":
                 self.tick = 0
         except:
             pass
-
 
     def move_objects(self):
         objects = self.objects.copy()
@@ -533,75 +544,104 @@ class MidiAnimator:
                 self.objects.remove(obj)
 
     def animate(self):
-        events = []
-        t = 0
-        events.append({"time": t})
-        for msg in self.mid:
-            if not msg.type == "note_on":
-                continue
-            note = int(msg.note)
-
-            if msg.time > 0:
-                t += msg.time
-                events.append({"time": t})
-                if msg.velocity > 0:
-                    events[-1][note] = None
-                else:
-                    self.write_duration(events, note, t)
-                continue
-
-            if msg.velocity > 0:
-                # Track duration of Note
-                events[-1][note] = None
-            if msg.velocity == 0:
-                self.write_duration(events, note, t)
-
-        while True:
-            if self.tick >= len(events):
-                continue
-            i = self.tick
-            self.tick += 1
-            event = events[i]
-            event = event.copy()
-            del event["time"]
-
-            for note in event:
-                if note != max(event.keys()) and note != min(event.keys()):
+        try:
+            events = []
+            t = 0
+            events.append({"time": t})
+            for msg in self.mid:
+                if not msg.type == "note_on":
                     continue
-                duration = event[note]
-                rect_height = 12
-                y_pos = self.screen.get_height() // 2 - (note - 60) * rect_height * 2
-                rect = PyGameRect(self.screen,
-                                  abs(duration / (self.tickrate_ms / 1000) * self.dx) - 2,
-                                  rect_height,
-                                  self.screen.get_width() - 10, y_pos,
-                                  (255, 255, 255))
-                try:
-                    note_text = str(self.keys_for_c[note]) # + "  + " + str(note))
-                except IndexError:
-                    note_text = f"Not found {note}"
-                text = PyGameText(self.screen, note_text, self.screen.get_width() - 10,
-                                  y_pos + 2 * rect_height,
-                                  (255, 255, 255), None,
-                                  20)
-                self.objects.append(rect)
-                self.objects.append(text)
+                note = int(msg.note)
 
-            now = time.time()
-            try:
-                next_event = now + events[i + 1]["time"] - events[i]["time"]
-            except IndexError:
-                while len(self.objects) > 0:
-                    time.sleep(self.tickrate_ms / 1000)
+                if msg.time > 0:
+                    t += msg.time
+                    events.append({"time": t})
+                    if msg.velocity > 0:
+                        events[-1][note] = None
+                    else:
+                        self.write_duration(events, note, t)
+                    continue
+
+                if msg.velocity > 0:
+                    # Track duration of Note
+                    events[-1][note] = None
+                if msg.velocity == 0:
+                    self.write_duration(events, note, t)
+
+            repetitions = 0
+            t = time.time()
+            while True:
+                self.tick += 1
+                if self.tick >= len(events):
+                    repetitions += 1
+                    if repetitions >= MAX_REPETITIONS:
+                        text = PyGameText(self.screen, "The  End", self.screen.get_width() +300,
+                                          self.screen.get_height()//2,
+                                          (255, 255, 255), None,
+                                          80)
+                        text.render()
+                        text.surface = pygame.transform.rotate(text.surface, 90)
+                        self.objects.append(text)
+
+                        while len(self.objects) > 0:
+                            time.sleep(self.tickrate_ms / 1000)
+                            self.move_objects()
+                        return
+                    # Repeat
+                    self.tick = 0
+                i = self.tick
+                event = events[i]
+                event = event.copy()
+                del event["time"]
+
+                for note in event:
+                    if note != max(event.keys()) and note != min(event.keys()):
+                        continue
+                    duration = event[note]
+                    rect_height = 12
+                    # Gap between notes
+                    y_pos = (self.screen.get_height() * 3) // 8 - (note - 60) * rect_height * 2
+                    rect_width= abs((duration) // (self.tickrate_ms / 1000) * self.dx)-2
+                    rect = PyGameRect(self.screen,
+                                      rect_width,
+                                      rect_height,
+                                      self.screen.get_width(), y_pos,
+                                      (255, 255, 255 ))
+
+                    try:
+                        note_text = str(self.keys_for_c[note])  # + "  + " + str(note))
+                    except IndexError:
+                        note_text = f"Not found {note}"
+
+                    text = PyGameText(self.screen, note_text, self.screen.get_width() + 5,
+                                      y_pos + 1.2 * rect_height,
+                                      (255, 255, 255), None,
+                                      20)
+                    self.objects.append(rect)
+                    self.objects.append(text)
+
+                try:
+                    next_event = events[i + 1]["time"] - events[i]["time"]
+                except IndexError:
+                    next_event = SOLO_DURATION
+                    if repetitions + 1 < MAX_REPETITIONS:
+                        rep = 2
+                        dx = abs((SOLO_DURATION / rep )/ (self.tickrate_ms/1000)* self.dx)
+                        for kk in range(rep):
+                            text = PyGameText(self.screen, "SOLO TIME", self.screen.get_width() +100+ (kk)*dx,
+                                              self.screen.get_height()//2,
+                                              (255, 255, 255), None,
+                                              50)
+                            text.render()
+                            text.surface = pygame.transform.rotate(text.surface, 90)
+                            self.objects.append(text)
+                ticks_till_next_event= int(next_event/(self.tickrate_ms / 1000))
+                for _ in range(ticks_till_next_event):
+                    time.sleep(max(0, time.time()-t + self.tickrate_ms / 1000))
+                    t = time.time()
                     self.move_objects()
-                    self.draw()
-                self.tickrate_ms = int(self.tickrate_ms * 1)
-                self.mid.ticks_per_beat = int(self.mid.ticks_per_beat / 1)
-                return self.animate()
-            while next_event > time.time():
-                time.sleep(self.tickrate_ms / 1000)
-                self.move_objects()
-                self.draw()
+        except pygame.error:
+            return
 
     def write_duration(self, events, note, t):
         for event in events[-2::-1]:
@@ -688,19 +728,6 @@ def is_pentatonic(num: int):
     if rest in pentatonic_numbers:
         return True
     return False
-
-
-class DrawAudioController:
-    def __init__(self, audio_generator: AudioGenerator, screen: Surface):
-        self.audio_generator = audio_generator
-        self.screen = screen
-
-    def draw(self):
-        y_pos = (np.array(self.audio_generator.wave) * 100 + 300).tolist()
-        x_pos = np.arange(len(y_pos)).tolist()
-        points = list(zip(x_pos, y_pos))
-
-        pygame.draw.aalines(self.screen, (100, 200, 200), False, points)
 
 
 if __name__ == "__main__":
