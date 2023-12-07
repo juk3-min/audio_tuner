@@ -30,18 +30,21 @@ SAMPLE_DURATION = 0.01  # in seconds, may be float
 
 def main():
     #########
-    # Mapping of keys to note indicies
     keys_for_c = ["#"] * 80
     keys_for_c[41] = "x"
     keys_for_c[43] = "c"
     keys_for_c[45] = "v"
     keys_for_c[46] = "b"
-    keys_for_c[48] = "7"
-    keys_for_c[52] = "8"
-    keys_for_c[53] = "9"
-    keys_for_c[55] = "0"
-    # keys_for_c[57] = "q"
-    # keys_for_c[58] = "q"
+    keys_for_c[48] = "6"
+    keys_for_c[50] = "z"
+    keys_for_c[52] = "7"
+    keys_for_c[53] = "8"
+    keys_for_c[55] = "9"
+    keys_for_c[57] = "0"
+    keys_for_c[58] = "ß"
+    # SOLO melodies: (adjust for rhythm)
+    # c b c b c b6  b
+    # v 6 v 6 v 6z  6
 
 
 
